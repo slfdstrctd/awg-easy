@@ -2,6 +2,12 @@ name: Production
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to use for the image (e.g., latest, v1.0.0, test)'
+        required: true
+        default: 'latest'
+        type: string
   push:
     tags:
       - "v*"
@@ -118,6 +124,7 @@ jobs:
           flavor: |
             latest=false
           tags: |
+            type=raw,value=${{ github.event.inputs.tag || 'latest' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}
             type=semver,pattern={{major}}.{{minor}}
@@ -125,18 +132,28 @@ jobs:
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
         run: |
-          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+          # Get tags from metadata or use fallback
+          TAGS=$(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          if [ -z "$TAGS" ] || [ "$TAGS" = "null" ]; then
+            TAGS="-t ghcr.io/slfdstrctd/awg-easy:${{ github.event.inputs.tag || 'latest' }}"
+          fi
+          
+          docker buildx imagetools create $TAGS \
             $(printf 'ghcr.io/slfdstrctd/awg-easy@sha256:%s ' *)
 
       - name: Inspect image
         run: |
-          docker buildx imagetools inspect ghcr.io/slfdstrctd/awg-easy:${{ steps.meta.outputs.version }}
+          TAG="${{ steps.meta.outputs.version }}"
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            TAG="${{ github.event.inputs.tag || 'latest' }}"
+          fi
+          docker buildx imagetools inspect ghcr.io/slfdstrctd/awg-easy:$TAG
 
   docs:
     name: Build & Deploy Docs
     runs-on: ubuntu-latest
     if: |
-      github.repository_owner == 'slfdstrctd' 
+      startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     needs: docker-merge
