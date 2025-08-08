@@ -46,7 +46,7 @@ class WireGuard {
 
     WG_DEBUG('Saving Config...');
     await fs.writeFile(
-      `/etc/wireguard/${wgInterface.name}.conf`,
+      `/etc/amnezia/amneziawg/${wgInterface.name}.conf`,
       result.join('\n\n'),
       {
         mode: 0o600,
@@ -179,22 +179,27 @@ class WireGuard {
     WG_DEBUG(`Starting Wireguard Interface ${wgInterface.name}...`);
     await this.#saveWireguardConfig(wgInterface);
     await wg.down(wgInterface.name).catch(() => {});
-    await wg.up(wgInterface.name).catch((err) => {
+    
+    try {
+      await wg.up(wgInterface.name);
+      await this.#syncWireguardConfig(wgInterface);
+      WG_DEBUG(`Wireguard Interface ${wgInterface.name} started successfully.`);
+    } catch (err: any) {
       if (
         err &&
         err.message &&
-        err.message.includes(`Cannot find device "${wgInterface.name}"`)
+        (err.message.includes(`Cannot find device "${wgInterface.name}"`) ||
+         err.message.includes('Protocol not supported') ||
+         err.message.includes('Unable to access interface') ||
+         err.message.includes('RTNETLINK answers: Not supported'))
       ) {
-        throw new Error(
-          `WireGuard exited with the error: Cannot find device "${wgInterface.name}"\nThis usually means that your host's kernel does not support WireGuard!`,
-          { cause: err.message }
-        );
+        WG_DEBUG(`AmneziaWG kernel module not available. Running in config-only mode.`);
+        WG_DEBUG(`Configuration files have been generated at /etc/amnezia/amneziawg/${wgInterface.name}.conf`);
+        WG_DEBUG(`To use this configuration, install AmneziaWG kernel module on your host system.`);
+      } else {
+        throw err;
       }
-
-      throw err;
-    });
-    await this.#syncWireguardConfig(wgInterface);
-    WG_DEBUG(`Wireguard Interface ${wgInterface.name} started successfully.`);
+    }
 
     WG_DEBUG('Starting Cron Job...');
     await this.startCronJob();

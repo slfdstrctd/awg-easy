@@ -4,6 +4,8 @@ import type { ClientType } from '#db/repositories/client/types';
 import type { InterfaceType } from '#db/repositories/interface/types';
 import type { UserConfigType } from '#db/repositories/userConfig/types';
 import type { HooksType } from '#db/repositories/hooks/types';
+import { exec } from './cmd';
+import { iptablesTemplate } from './template';
 
 type Options = {
   enableIpv6?: boolean;
@@ -59,6 +61,15 @@ PrivateKey = ${wgInterface.privateKey}
 Address = ${address}
 ListenPort = ${wgInterface.port}
 MTU = ${wgInterface.mtu}
+Jc = ${wgInterface.jc}
+Jmin = ${wgInterface.jmin}
+Jmax = ${wgInterface.jmax}
+S1 = ${wgInterface.s1}
+S2 = ${wgInterface.s2}
+H1 = ${wgInterface.h1}
+H2 = ${wgInterface.h2}
+H3 = ${wgInterface.h3}
+H4 = ${wgInterface.h4}
 PreUp = ${iptablesTemplate(hooks.preUp, wgInterface)}
 PostUp = ${iptablesTemplate(hooks.postUp, wgInterface)}
 PreDown = ${iptablesTemplate(hooks.preDown, wgInterface)}
@@ -91,7 +102,20 @@ PostDown = ${iptablesTemplate(hooks.postDown, wgInterface)}`;
     const dnsLine =
       dnsServers.length > 0 ? `DNS = ${dnsServers.join(', ')}` : null;
 
-    const extraLines = [dnsLine, ...hookLines].filter((v) => v !== null);
+    // AmneziaWG parameters - use client override or interface default
+    const amzLines = [
+      `Jc = ${client.jc ?? wgInterface.jc}`,
+      `Jmin = ${client.jmin ?? wgInterface.jmin}`,
+      `Jmax = ${client.jmax ?? wgInterface.jmax}`,
+      `S1 = ${client.s1 ?? wgInterface.s1}`,
+      `S2 = ${client.s2 ?? wgInterface.s2}`,
+      `H1 = ${client.h1 ?? wgInterface.h1}`,
+      `H2 = ${client.h2 ?? wgInterface.h2}`,
+      `H3 = ${client.h3 ?? wgInterface.h3}`,
+      `H4 = ${client.h4 ?? wgInterface.h4}`,
+    ];
+
+    const extraLines = [dnsLine, ...hookLines, ...amzLines].filter((v) => v !== null);
 
     return `[Interface]
 PrivateKey = ${client.privateKey}
@@ -107,81 +131,110 @@ Endpoint = ${userConfig.host}:${userConfig.port}`;
   },
 
   generatePrivateKey: () => {
-    return exec('wg genkey');
+    return exec('awg genkey');
   },
 
   getPublicKey: (privateKey: string) => {
-    return exec(`echo ${privateKey} | wg pubkey`, {
-      log: 'echo ***hidden*** | wg pubkey',
+    return exec(`echo ${privateKey} | awg pubkey`, {
+      log: 'echo ***hidden*** | awg pubkey',
     });
   },
 
   generatePreSharedKey: () => {
-    return exec('wg genpsk');
+    return exec('awg genpsk');
   },
 
   up: (infName: string) => {
-    return exec(`wg-quick up ${infName}`);
+    return exec(`awg-quick up ${infName}`);
   },
 
   down: (infName: string) => {
-    return exec(`wg-quick down ${infName}`);
+    return exec(`awg-quick down ${infName}`);
   },
 
   restart: (infName: string) => {
-    return exec(`wg-quick down ${infName}; wg-quick up ${infName}`);
+    return exec(`awg-quick down ${infName}; awg-quick up ${infName}`);
   },
 
   sync: (infName: string) => {
-    return exec(`wg syncconf ${infName} <(wg-quick strip ${infName})`);
+    return exec(`awg syncconf ${infName} <(awg-quick strip ${infName})`).catch((err: any) => {
+      // If the interface doesn't exist or isn't running, just log and continue
+      if (
+        err &&
+        err.message &&
+        (err.message.includes('Protocol not supported') ||
+         err.message.includes('Unable to access interface') ||
+         err.message.includes('No such device') ||
+         err.message.includes('does not exist'))
+      ) {
+        // Interface not running, skip sync
+        return '';
+      }
+      throw err;
+    });
   },
 
   dump: async (infName: string) => {
-    const rawDump = await exec(`wg show ${infName} dump`, {
-      log: false,
-    });
-
-    type wgDumpLine = [
-      string,
-      string,
-      string,
-      string,
-      string,
-      string,
-      string,
-      string,
-    ];
-
-    return rawDump
-      .trim()
-      .split('\n')
-      .slice(1)
-      .map((line) => {
-        const splitLines = line.split('\t');
-        const [
-          publicKey,
-          preSharedKey,
-          endpoint,
-          allowedIps,
-          latestHandshakeAt,
-          transferRx,
-          transferTx,
-          persistentKeepalive,
-        ] = splitLines as wgDumpLine;
-
-        return {
-          publicKey,
-          preSharedKey,
-          endpoint: endpoint === '(none)' ? null : endpoint,
-          allowedIps,
-          latestHandshakeAt:
-            latestHandshakeAt === '0'
-              ? null
-              : new Date(Number.parseInt(`${latestHandshakeAt}000`)),
-          transferRx: Number.parseInt(transferRx),
-          transferTx: Number.parseInt(transferTx),
-          persistentKeepalive: persistentKeepalive,
-        };
+    try {
+      const rawDump = await exec(`awg show ${infName} dump`, {
+        log: false,
       });
+
+      type wgDumpLine = [
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+      ];
+
+      return rawDump
+        .trim()
+        .split('\n')
+        .slice(1)
+        .map((line) => {
+          const splitLines = line.split('\t');
+          const [
+            publicKey,
+            preSharedKey,
+            endpoint,
+            allowedIps,
+            latestHandshakeAt,
+            transferRx,
+            transferTx,
+            persistentKeepalive,
+          ] = splitLines as wgDumpLine;
+
+          return {
+            publicKey,
+            preSharedKey,
+            endpoint: endpoint === '(none)' ? null : endpoint,
+            allowedIps,
+            latestHandshakeAt:
+              latestHandshakeAt === '0'
+                ? null
+                : new Date(parseInt(`${latestHandshakeAt}000`)),
+            transferRx: parseInt(transferRx),
+            transferTx: parseInt(transferTx),
+            persistentKeepalive: persistentKeepalive,
+          };
+        });
+    } catch (err: any) {
+      // If the interface doesn't exist or isn't running, return empty array
+      if (
+        err &&
+        err.message &&
+        (err.message.includes('Protocol not supported') ||
+         err.message.includes('Unable to access interface') ||
+         err.message.includes('No such device') ||
+         err.message.includes('does not exist'))
+      ) {
+        return [];
+      }
+      throw err;
+    }
   },
 };

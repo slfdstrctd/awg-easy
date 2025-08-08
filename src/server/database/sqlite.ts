@@ -15,7 +15,7 @@ import { OneTimeLinkService } from './repositories/oneTimeLink/service';
 
 const DB_DEBUG = debug('Database');
 
-const client = createClient({ url: 'file:/etc/wireguard/wg-easy.db' });
+const client = createClient({ url: 'file:/etc/amnezia/amneziawg/wg-easy.db' });
 const db = drizzle({ client, schema });
 
 export async function connect() {

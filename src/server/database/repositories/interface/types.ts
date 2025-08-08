@@ -34,6 +34,16 @@ export const InterfaceUpdateSchema = schemaForType<InterfaceUpdateType>()(
     port: PortSchema,
     device: device,
     enabled: EnabledSchema,
+    // AmneziaWG parameters
+    jc: z.number().int().min(1).max(128).default(7),
+    jmin: z.number().int().min(0).max(1500).default(25),
+    jmax: z.number().int().min(0).max(1500).default(1200),
+    s1: z.number().int().min(0).max(1500).default(96),
+    s2: z.number().int().min(0).max(1500).default(68),
+    h1: z.number().int().min(1).max(2147483647).default(834729847),
+    h2: z.number().int().min(1).max(2147483647).default(1948573829),
+    h3: z.number().int().min(1).max(2147483647).default(592847362),
+    h4: z.number().int().min(1).max(2147483647).default(1847293658),
   })
 );
 

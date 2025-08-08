@@ -1,22 +1,24 @@
 volumes:
-  etc_wireguard:
+  etc_amneziawg:
 
 services:
-  wg-easy:
-    #environment:
+  awg-easy:
+    environment:
     #  Optional:
-    #  - PORT=51821
+     - PORT=51821
     #  - HOST=0.0.0.0
     #  - INSECURE=false
 
-    image: ghcr.io/wg-easy/wg-easy:15
-    container_name: wg-easy
+    # image: ghcr.io/slfdstrctd/awg-easy:latest
+    build:
+      dockerfile: ./Dockerfile
+    container_name: awg-easy
     networks:
       wg:
         ipv4_address: 10.42.42.42
         ipv6_address: fdcc:ad94:bacf:61a3::2a
     volumes:
-      - etc_wireguard:/etc/wireguard
+      - etc_amneziawg:/etc/amnezia/amneziawg
       - /lib/modules:/lib/modules:ro
     ports:
       - "51820:51820/udp"

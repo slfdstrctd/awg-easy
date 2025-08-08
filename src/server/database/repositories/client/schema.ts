@@ -38,6 +38,16 @@ export const client = sqliteTable('clients_table', {
   mtu: int().notNull(),
   dns: text({ mode: 'json' }).$type<string[]>(),
   serverEndpoint: text('server_endpoint'),
+  // AmneziaWG parameters (optional, override interface defaults)
+  jc: int(),
+  jmin: int(),
+  jmax: int(),
+  s1: int(),
+  s2: int(),
+  h1: int(),
+  h2: int(),
+  h3: int(),
+  h4: int(),
   enabled: int({ mode: 'boolean' }).notNull(),
   createdAt: text('created_at')
     .notNull()

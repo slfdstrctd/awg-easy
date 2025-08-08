@@ -6,9 +6,7 @@ RUN npm install --global corepack@latest
 # Install pnpm
 RUN corepack enable pnpm
 
-HEALTHCHECK --interval=1m --timeout=5s --retries=3 CMD /usr/bin/timeout 5s /bin/sh -c "/usr/bin/wg show | /bin/grep -q interface || exit 1"
-
-# Install Linux packages
+# Install build dependencies and system packages
 RUN apk add --no-cache \
     dpkg \
     dumb-init \
@@ -16,7 +14,24 @@ RUN apk add --no-cache \
     ip6tables \
     kmod \
     iptables-legacy \
-    wireguard-tools
+    git \
+    make \
+    gcc \
+    musl-dev \
+    linux-headers \
+    bash
+
+# Build AmneziaWG tools from the dedicated tools repository
+RUN git clone https://github.com/amnezia-vpn/amneziawg-tools.git /tmp/amneziawg-tools && \
+    cd /tmp/amneziawg-tools/src && \
+    make && \
+    make install PREFIX=/usr && \
+    cd / && \
+    rm -rf /tmp/amneziawg-tools && \
+    apk del git make gcc musl-dev linux-headers
+
+# Update healthcheck to use awg instead of wg
+HEALTHCHECK --interval=1m --timeout=5s --retries=3 CMD /usr/bin/timeout 5s /bin/sh -c "/usr/bin/awg show | /bin/grep -q interface || exit 1"
 
 # Use iptables-legacy
 RUN update-alternatives --install /usr/sbin/iptables iptables /usr/sbin/iptables-legacy 10 --slave /usr/sbin/iptables-restore iptables-restore /usr/sbin/iptables-legacy-restore --slave /usr/sbin/iptables-save iptables-save /usr/sbin/iptables-legacy-save

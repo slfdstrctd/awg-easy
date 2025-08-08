@@ -67,6 +67,16 @@ export const ClientUpdateSchema = schemaForType<UpdateClientType>()(
     persistentKeepalive: PersistentKeepaliveSchema,
     serverEndpoint: AddressSchema.nullable(),
     dns: DnsSchema.nullable(),
+    // AmneziaWG parameters (optional, override interface defaults)
+    jc: z.number().int().min(1).max(128).optional(),
+    jmin: z.number().int().min(0).max(1500).optional(),
+    jmax: z.number().int().min(0).max(1500).optional(),
+    s1: z.number().int().min(0).max(1500).optional(),
+    s2: z.number().int().min(0).max(1500).optional(),
+    h1: z.number().int().min(1).max(2147483647).optional(),
+    h2: z.number().int().min(1).max(2147483647).optional(),
+    h3: z.number().int().min(1).max(2147483647).optional(),
+    h4: z.number().int().min(1).max(2147483647).optional(),
   })
 );
 

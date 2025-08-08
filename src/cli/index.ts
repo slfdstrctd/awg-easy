@@ -12,7 +12,7 @@ import packageJson from '../package.json';
 import * as schema from '../server/database/schema';
 import { hashPassword } from '../server/utils/password';
 
-const client = createClient({ url: 'file:/etc/wireguard/wg-easy.db' });
+const client = createClient({ url: 'file:/etc/amnezia/amneziawg/wg-easy.db' });
 const db = drizzle({ client, schema });
 
 const dbAdminReset = defineCommand({
